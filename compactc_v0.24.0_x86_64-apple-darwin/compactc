@@ -1,0 +1,5 @@
+#!/bin/bash
+thisdir="$(cd $(dirname $0) ; pwd -P)"
+PATH="$thisdir:$PATH"
+echo "Compactc version: $(exec "$thisdir/compactc.bin" --version)"
+exec "$thisdir/compactc.bin" $@
