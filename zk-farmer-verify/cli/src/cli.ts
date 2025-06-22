@@ -19,7 +19,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import { createInterface, type Interface } from 'node:readline/promises';
 import { type Logger } from 'pino';
 import { type StartedDockerComposeEnvironment, type DockerComposeEnvironment } from 'testcontainers';
-import { type CounterProviders, type DeployedCounterContract } from './common-types';
+import { type FarmerProviders, type DeployedFarmerContract } from './common-types';
 import { type Config, StandaloneConfig } from './config';
 import * as api from './api';
 
@@ -33,29 +33,31 @@ const GENESIS_MINT_WALLET_SEED = '0000000000000000000000000000000000000000000000
 
 const DEPLOY_OR_JOIN_QUESTION = `
 You can do one of the following:
-  1. Deploy a new counter contract
-  2. Join an existing counter contract
+  1. Deploy a new farmer verification contract
+  2. Join an existing farmer verification contract
   3. Exit
 Which would you like to do? `;
 
 const MAIN_LOOP_QUESTION = `
 You can do one of the following:
-  1. Increment
-  2. Display current counter value
-  3. Exit
+  1. Register a new farmer
+  2. Register a crop for a farmer
+  3. Run test farmer registration
+  4. Display farmer contract information
+  5. Exit
 Which would you like to do? `;
 
-const join = async (providers: CounterProviders, rli: Interface): Promise<DeployedCounterContract> => {
+const join = async (providers: FarmerProviders, rli: Interface): Promise<DeployedFarmerContract> => {
   const contractAddress = await rli.question('What is the contract address (in hex)? ');
   return await api.joinContract(providers, contractAddress);
 };
 
-const deployOrJoin = async (providers: CounterProviders, rli: Interface): Promise<DeployedCounterContract | null> => {
+const deployOrJoin = async (providers: FarmerProviders, rli: Interface): Promise<DeployedFarmerContract | null> => {
   while (true) {
     const choice = await rli.question(DEPLOY_OR_JOIN_QUESTION);
     switch (choice) {
       case '1':
-        return await api.deploy(providers, { privateCounter: 0 });
+        return await api.deploy(providers);
       case '2':
         return await join(providers, rli);
       case '3':
@@ -67,21 +69,79 @@ const deployOrJoin = async (providers: CounterProviders, rli: Interface): Promis
   }
 };
 
-const mainLoop = async (providers: CounterProviders, rli: Interface): Promise<void> => {
-  const counterContract = await deployOrJoin(providers, rli);
-  if (counterContract === null) {
+const registerFarmer = async (farmerContract: DeployedFarmerContract, rli: Interface): Promise<void> => {
+  try {
+    logger.info('Registering a new farmer...');
+    
+    // Get farmer details from user
+    const fullName = await rli.question('Enter farmer full name: ');
+    const region = await rli.question('Enter farmer region: ');
+    const registrationDate = await rli.question('Enter registration date (YYYY-MM-DD): ');
+    
+    // Convert inputs to the expected format
+    const farmerHash = new Uint8Array(32); // Placeholder hash - in real implementation this would be generated
+    const fullNameField = BigInt(fullName.length); // Convert to Field type
+    const regionField = BigInt(region.length); // Convert to Field type
+    const registrationDateField = BigInt(new Date(registrationDate).getTime()); // Convert to Field type
+    
+    await api.signUpFarmer(farmerContract, farmerHash, fullNameField, regionField, registrationDateField);
+    logger.info('Farmer registration completed successfully!');
+  } catch (error) {
+    logger.error(`Failed to register farmer: ${error}`);
+  }
+};
+
+const registerCrop = async (farmerContract: DeployedFarmerContract, rli: Interface): Promise<void> => {
+  try {
+    logger.info('Registering a crop for a farmer...');
+    
+    // Get crop details from user
+    const farmerHashInput = await rli.question('Enter farmer hash (32 bytes hex): ');
+    const cropName = await rli.question('Enter crop name: ');
+    const plantingDate = await rli.question('Enter planting date (YYYY-MM-DD): ');
+    const expectedHarvestDate = await rli.question('Enter expected harvest date (YYYY-MM-DD): ');
+    const cropType = await rli.question('Enter crop type (1=Grains, 2=Vegetables, 3=Fruits, 4=Legumes): ');
+    
+    // Convert inputs to the expected format
+    const farmerHash = new Uint8Array(Buffer.from(farmerHashInput.replace('0x', ''), 'hex'));
+    const cropNameField = BigInt(cropName.length); // Convert to Field type
+    const plantingDateField = BigInt(new Date(plantingDate).getTime()); // Convert to Field type
+    const expectedHarvestDateField = BigInt(new Date(expectedHarvestDate).getTime()); // Convert to Field type
+    const cropTypeField = BigInt(parseInt(cropType)); // Convert to Field type
+    
+    await api.registerCrop(farmerContract, farmerHash, cropNameField, plantingDateField, expectedHarvestDateField, cropTypeField);
+    logger.info('Crop registration completed successfully!');
+  } catch (error) {
+    logger.error(`Failed to register crop: ${error}`);
+  }
+};
+
+const mainLoop = async (providers: FarmerProviders, rli: Interface): Promise<void> => {
+  const farmerContract = await deployOrJoin(providers, rli);
+  if (farmerContract === null) {
     return;
   }
   while (true) {
     const choice = await rli.question(MAIN_LOOP_QUESTION);
     switch (choice) {
       case '1':
-        await api.increment(counterContract);
+        await registerFarmer(farmerContract, rli);
         break;
       case '2':
-        await api.displayCounterValue(providers, counterContract);
+        await registerCrop(farmerContract, rli);
         break;
       case '3':
+        try {
+          await api.testFarmerRegistration(farmerContract);
+          logger.info('Test farmer registration completed successfully!');
+        } catch (error) {
+          logger.error(`Failed to run test farmer registration: ${error}`);
+        }
+        break;
+      case '4':
+        await api.displayFarmerInfo(providers, farmerContract);
+        break;
+      case '5':
         logger.info('Exiting...');
         return;
       default:

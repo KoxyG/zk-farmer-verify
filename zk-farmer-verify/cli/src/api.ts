@@ -16,7 +16,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { type ContractAddress } from '@midnight-ntwrk/compact-runtime';
-// import { Counter, type CounterPrivateState, witnesses } from '@midnight-ntwrk/counter-contract';
 import { type CoinInfo, nativeToken, Transaction, type TransactionId } from '@midnight-ntwrk/ledger';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
@@ -37,18 +36,15 @@ import { webcrypto } from 'crypto';
 import { type Logger } from 'pino';
 import * as Rx from 'rxjs';
 import { WebSocket } from 'ws';
-import {
-  type CounterContract,
-  type CounterPrivateStateId,
-  type CounterProviders,
-  type DeployedCounterContract,
-} from './common-types';
-import { type Config, contractConfig } from './config';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { assertIsContractAddress, toHex } from '@midnight-ntwrk/midnight-js-utils';
 import { getLedgerNetworkId, getZswapNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import * as fsAsync from 'node:fs/promises';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { type Config, contractConfig } from './config';
+import { type FarmerProviders, type DeployedFarmerContract } from './common-types';
 
 let logger: Logger;
 // Instead of setting globalThis.crypto which is read-only, we'll ensure crypto is available
@@ -56,68 +52,225 @@ let logger: Logger;
 // @ts-expect-error: It's needed to enable WebSocket usage through apollo
 globalThis.WebSocket = WebSocket;
 
-export const getCounterLedgerState = async (
-  providers: CounterProviders,
-  contractAddress: ContractAddress,
-): Promise<bigint | null> => {
-  assertIsContractAddress(contractAddress);
-  logger.info('Checking contract ledger state...');
-  const state = await providers.publicDataProvider
-    .queryContractState(contractAddress)
-    .then((contractState) => (contractState != null ? Counter.ledger(contractState.data).round : null));
-  logger.info(`Ledger state: ${state}`);
-  return state;
+// Define __filename and __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load the farmer verification contract
+const farmerVerifierContractInstance = async () => {
+  try {
+    logger.info('Loading farmer verification contract...');
+    
+    // Path to the contract file
+    const contractPath = path.resolve(__dirname, '../../contract/src/managed/farmer/contract/index.cjs');
+    logger.info(`Contract path: ${contractPath}`);
+    
+    // Check if the contract file exists
+    if (!fs.existsSync(contractPath)) {
+      throw new Error(`Contract file not found at ${contractPath}. Please run: compactc --vscode src/farmer.compact src/managed/farmer`);
+    }
+    
+    // Read the contract file
+    const contractCode = fs.readFileSync(contractPath, 'utf8');
+    logger.info(`Contract code loaded: ${contractCode.length} bytes`);
+    
+    // Create a contract structure that matches the expected format for the Midnight JS SDK
+    const contract = {
+      code: Buffer.from(contractCode).toString('hex'),
+      circuits: {
+        sign_up: {
+          name: 'sign_up',
+          inputs: [
+            { name: 'farmer_hash', type: 'bytes32' },
+            { name: 'full_name', type: 'field' },
+            { name: 'region', type: 'field' },
+            { name: 'registration_date', type: 'field' }
+          ],
+          outputs: []
+        },
+        register_crop: {
+          name: 'register_crop',
+          inputs: [
+            { name: 'farmer_hash', type: 'bytes32' },
+            { name: 'crop_name', type: 'field' },
+            { name: 'planting_date', type: 'field' },
+            { name: 'expected_harvest_date', type: 'field' },
+            { name: 'crop_type', type: 'field' }
+          ],
+          outputs: []
+        },
+        test_farmer_registration: {
+          name: 'test_farmer_registration',
+          inputs: [],
+          outputs: []
+        }
+      },
+      impureCircuits: {
+        sign_up: {
+          name: 'sign_up',
+          inputs: [
+            { name: 'farmer_hash', type: 'bytes32' },
+            { name: 'full_name', type: 'field' },
+            { name: 'region', type: 'field' },
+            { name: 'registration_date', type: 'field' }
+          ],
+          outputs: []
+        },
+        register_crop: {
+          name: 'register_crop',
+          inputs: [
+            { name: 'farmer_hash', type: 'bytes32' },
+            { name: 'crop_name', type: 'field' },
+            { name: 'planting_date', type: 'field' },
+            { name: 'expected_harvest_date', type: 'field' },
+            { name: 'crop_type', type: 'field' }
+          ],
+          outputs: []
+        },
+        test_farmer_registration: {
+          name: 'test_farmer_registration',
+          inputs: [],
+          outputs: []
+        }
+      },
+      constructorData: {},
+      witnesses: {},
+      initialState: () => ({
+        registered_farmers: new Map(),
+        farmer_details: new Map(),
+        farmer_crops: new Map(),
+        crop_details: new Map()
+      })
+    };
+    
+    logger.info('Contract loaded successfully');
+    logger.info(`Circuit definitions: ${Object.keys(contract.circuits).join(', ')}`);
+    return contract as any; // Use type assertion to bypass type checking
+  } catch (error) {
+    logger.error('Failed to load contract:', error);
+    throw error;
+  }
 };
 
-export const counterContractInstance: CounterContract = new Counter.Contract(witnesses);
+export const getFarmerLedgerState = async (
+  providers: FarmerProviders,
+  contractAddress: ContractAddress,
+): Promise<{ registeredFarmers: number; totalCrops: number } | null> => {
+  assertIsContractAddress(contractAddress);
+  logger.info('Checking farmer contract ledger state...');
+  const state = await providers.publicDataProvider.queryContractState(contractAddress);
+  if (state != null) {
+    // This would need to be implemented based on your actual ledger structure
+    logger.info(`Ledger state retrieved for contract ${contractAddress}`);
+    return { registeredFarmers: 0, totalCrops: 0 }; // Placeholder
+  }
+  return null;
+};
 
 export const joinContract = async (
-  providers: CounterProviders,
+  providers: FarmerProviders,
   contractAddress: string,
-): Promise<DeployedCounterContract> => {
-  const counterContract = await findDeployedContract(providers, {
-    contractAddress,
-    contract: counterContractInstance,
-    privateStateId: 'counterPrivateState',
-    initialPrivateState: { privateCounter: 0 },
-  });
-  logger.info(`Joined contract at address: ${counterContract.deployTxData.public.contractAddress}`);
-  return counterContract;
+): Promise<DeployedFarmerContract> => {
+  logger.info(`Joining farmer verification contract at address: ${contractAddress}`);
+  const contract = await farmerVerifierContractInstance();
+  
+  // Create a provider structure that matches what findDeployedContract expects
+  const joinProviders = {
+    midnight: providers.midnightProvider,
+    wallet: providers.walletProvider,
+    zkConfig: providers.zkConfigProvider,
+    logger
+  } as any;
+  
+  const farmerContract = await findDeployedContract(
+    joinProviders,
+    {
+      privateStateId: contractConfig.privateStateStoreName,
+      contractAddress,
+      contract,
+      initialPrivateState: {},
+    }
+  );
+  
+  logger.info(`Joined contract at address: ${contractAddress}`);
+  return farmerContract as unknown as DeployedFarmerContract;
 };
 
-export const deploy = async (
-  providers: CounterProviders,
-  privateState: CounterPrivateState,
-): Promise<DeployedCounterContract> => {
-  logger.info('Deploying counter contract...');
-  const counterContract = await deployContract(providers, {
-    contract: counterContractInstance,
-    privateStateId: 'counterPrivateState',
-    initialPrivateState: privateState,
-  });
-  logger.info(`Deployed contract at address: ${counterContract.deployTxData.public.contractAddress}`);
-  return counterContract;
+export const deploy = async (providers: FarmerProviders): Promise<DeployedFarmerContract> => {
+  logger.info('Deploying farmer verification contract...');
+  const contract = await farmerVerifierContractInstance();
+  
+  // Create a provider structure that matches what deployContract expects
+  const deployProviders = {
+    midnight: providers.midnightProvider,
+    wallet: providers.walletProvider,
+    zkConfig: providers.zkConfigProvider,
+    logger
+  } as any;
+  
+  logger.info('Calling deployContract with contract and providers');
+  
+  const farmerContract = await deployContract(
+    deployProviders,
+    {
+      privateStateId: contractConfig.privateStateStoreName,
+      contract,
+      initialPrivateState: {},
+    }
+  );
+  
+  logger.info(`Deployed contract at address: ${farmerContract.deployTxData.public.contractAddress}`);
+  return farmerContract as unknown as DeployedFarmerContract;
 };
 
-export const increment = async (counterContract: DeployedCounterContract): Promise<FinalizedTxData> => {
-  logger.info('Incrementing...');
-  const finalizedTxData = await counterContract.callTx.increment();
-  logger.info(`Transaction ${finalizedTxData.public.txId} added in block ${finalizedTxData.public.blockHeight}`);
-  return finalizedTxData.public;
+export const signUpFarmer = async (
+  farmerContract: DeployedFarmerContract,
+  farmerHash: Uint8Array,
+  fullName: bigint,
+  region: bigint,
+  registrationDate: bigint
+): Promise<FinalizedTxData> => {
+  logger.info('Registering new farmer...');
+  // Placeholder implementation - would need proper contract integration
+  logger.info(`Farmer registration would be called with hash: ${farmerHash}, name: ${fullName}, region: ${region}, date: ${registrationDate}`);
+  throw new Error('signUpFarmer not yet implemented - requires proper contract integration');
 };
 
-export const displayCounterValue = async (
-  providers: CounterProviders,
-  counterContract: DeployedCounterContract,
-): Promise<{ counterValue: bigint | null; contractAddress: string }> => {
-  const contractAddress = counterContract.deployTxData.public.contractAddress;
-  const counterValue = await getCounterLedgerState(providers, contractAddress);
-  if (counterValue === null) {
-    logger.info(`There is no counter contract deployed at ${contractAddress}.`);
+export const registerCrop = async (
+  farmerContract: DeployedFarmerContract,
+  farmerHash: Uint8Array,
+  cropName: bigint,
+  plantingDate: bigint,
+  expectedHarvestDate: bigint,
+  cropType: bigint
+): Promise<FinalizedTxData> => {
+  logger.info('Registering crop for farmer...');
+  // Placeholder implementation - would need proper contract integration
+  logger.info(`Crop registration would be called with hash: ${farmerHash}, crop: ${cropName}, planting: ${plantingDate}, harvest: ${expectedHarvestDate}, type: ${cropType}`);
+  throw new Error('registerCrop not yet implemented - requires proper contract integration');
+};
+
+export const testFarmerRegistration = async (
+  farmerContract: DeployedFarmerContract
+): Promise<FinalizedTxData> => {
+  logger.info('Running test farmer registration...');
+  // Placeholder implementation - would need proper contract integration
+  logger.info('Test farmer registration would be called');
+  throw new Error('testFarmerRegistration not yet implemented - requires proper contract integration');
+};
+
+export const displayFarmerInfo = async (
+  providers: FarmerProviders,
+  farmerContract: DeployedFarmerContract,
+): Promise<{ contractAddress: string; farmerInfo: any }> => {
+  const contractAddress = farmerContract.deployTxData.public.contractAddress;
+  const farmerInfo = await getFarmerLedgerState(providers, contractAddress);
+  if (farmerInfo === null) {
+    logger.info(`There is no farmer contract deployed at ${contractAddress}.`);
   } else {
-    logger.info(`Current counter value: ${Number(counterValue)}`);
+    logger.info(`Farmer contract info: ${JSON.stringify(farmerInfo)}`);
   }
-  return { contractAddress, counterValue };
+  return { contractAddress, farmerInfo };
 };
 
 export const createWalletAndMidnightProvider = async (wallet: Wallet): Promise<WalletProvider & MidnightProvider> => {
@@ -322,11 +475,11 @@ export const buildFreshWallet = async (config: Config): Promise<Wallet & Resourc
 export const configureProviders = async (wallet: Wallet & Resource, config: Config) => {
   const walletAndMidnightProvider = await createWalletAndMidnightProvider(wallet);
   return {
-    privateStateProvider: levelPrivateStateProvider<typeof CounterPrivateStateId>({
+    privateStateProvider: levelPrivateStateProvider<'farmerPrivateState'>({
       privateStateStoreName: contractConfig.privateStateStoreName,
     }),
     publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
-    zkConfigProvider: new NodeZkConfigProvider<'increment'>(contractConfig.zkConfigPath),
+    zkConfigProvider: new NodeZkConfigProvider<'sign_up' | 'register_crop'>(contractConfig.zkConfigPath),
     proofProvider: httpClientProofProvider(config.proofServer),
     walletProvider: walletAndMidnightProvider,
     midnightProvider: walletAndMidnightProvider,

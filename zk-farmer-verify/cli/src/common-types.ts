@@ -13,16 +13,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Counter, type CounterPrivateState } from '@midnight-ntwrk/counter-contract';
-import type { ImpureCircuitId, MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
-import type { DeployedContract, FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { type ContractAddress } from '@midnight-ntwrk/compact-runtime';
+import { type DeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
 
-export type CounterCircuits = ImpureCircuitId<Counter.Contract<CounterPrivateState>>;
+// Legacy counter types (keeping for compatibility)
+export type CounterContract = any;
+export type CounterPrivateStateId = 'counterPrivateState';
+export type CounterProviders = MidnightProviders<any, string, unknown>;
+export type DeployedCounterContract = DeployedContract<any>;
 
-export const CounterPrivateStateId = 'counterPrivateState';
-
-export type CounterProviders = MidnightProviders<CounterCircuits, typeof CounterPrivateStateId, CounterPrivateState>;
-
-export type CounterContract = Counter.Contract<CounterPrivateState>;
-
-export type DeployedCounterContract = DeployedContract<CounterContract> | FoundContract<CounterContract>;
+// New farmer verification types
+export type FarmerProviders = MidnightProviders<any, string, unknown>;
+export type DeployedFarmerContract = DeployedContract<any>;
