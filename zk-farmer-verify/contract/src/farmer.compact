@@ -1,0 +1,83 @@
+pragma language_version >= 0.14.0;
+import CompactStandardLibrary;
+
+// Structure for farmer registration
+struct FarmerRegistration {
+    farmer_hash: Bytes<32>,
+    full_name: Field,
+    region: Field,
+    registration_date: Field
+}
+
+// Structure for crop registration
+struct CropRegistration {
+    farmer_hash: Bytes<32>,
+    crop_name: Field,
+    planting_date: Field,
+    expected_harvest_date: Field,
+    crop_type: Field
+}
+
+// Ledger to store registered farmers (using Map instead of Set)
+export ledger registered_farmers: Map<Bytes<32>, Boolean>;
+
+// Ledger to store farmer details
+export ledger farmer_details: Map<Bytes<32>, Field>;
+
+// Ledger to store crops per farmer
+export ledger farmer_crops: Map<Bytes<32>, Field>;
+
+// Ledger to store crop details
+export ledger crop_details: Map<Bytes<32>, Field>;
+
+// Helper circuit to check if a farmer is registered
+circuit is_farmer_registered(farmer_hash: Bytes<32>): Boolean {
+    const is_registered = registered_farmers.lookup(disclose(farmer_hash));
+    return is_registered == true;
+}
+
+// Main circuit to register a new farmer
+export circuit sign_up(
+    farmer_hash: Bytes<32>,
+    full_name: Field,
+    region: Field,
+    registration_date: Field
+): [] {
+    const is_registered = registered_farmers.lookup(disclose(farmer_hash));
+    if (is_registered != true) {
+        registered_farmers.insert(disclose(farmer_hash), true);
+        farmer_details.insert(disclose(farmer_hash), disclose(registration_date));
+    }
+}
+
+// Main circuit to register a crop for a farmer
+export circuit register_crop(
+    farmer_hash: Bytes<32>,
+    crop_name: Field,
+    planting_date: Field,
+    expected_harvest_date: Field,
+    crop_type: Field
+): [] {
+    const is_registered = registered_farmers.lookup(disclose(farmer_hash));
+    if (is_registered == true) {
+        farmer_crops.insert(disclose(farmer_hash), disclose(planting_date));
+        crop_details.insert(disclose(farmer_hash), disclose(expected_harvest_date));
+    }
+}
+
+// Witness functions for testing
+witness create_test_farmer_hash(): Bytes<32>;
+witness create_test_farmer_name(): Field;
+witness create_test_region(): Field;
+witness create_test_crop_name(): Field;
+
+// Test circuit
+export circuit test_farmer_registration(): [] {
+    const test_farmer = create_test_farmer_hash();
+    const test_name = create_test_farmer_name();
+    const test_region = create_test_region();
+    const test_crop = create_test_crop_name();
+    
+    sign_up(test_farmer, test_name, test_region, 1677609600);
+    register_crop(test_farmer, test_crop, 1677609600, 1680288000, 1);
+}

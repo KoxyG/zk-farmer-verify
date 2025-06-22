@@ -14,8 +14,28 @@
 // limitations under the License.
 
 // This is how we type an empty object.
-export type CounterPrivateState = {
-  privateCounter: number;
+export type FarmerPrivateState = {
+  farmerHash: Uint8Array;
+  farmerName: bigint;
+  region: bigint;
+  cropName: bigint;
 };
 
-export const witnesses = {};
+export const witnesses = {
+  create_test_farmer_hash: (): Uint8Array => {
+    // Return a test farmer hash (32 bytes)
+    return new Uint8Array(32).fill(1);
+  },
+  create_test_farmer_name: (): bigint => {
+    // Return a test farmer name as Field (bigint)
+    return 123456789n;
+  },
+  create_test_region: (): bigint => {
+    // Return a test region as Field (bigint)
+    return 987654321n;
+  },
+  create_test_crop_name: (): bigint => {
+    // Return a test crop name as Field (bigint)
+    return 555666777n;
+  }
+};
