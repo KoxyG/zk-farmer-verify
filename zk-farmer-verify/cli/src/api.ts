@@ -43,8 +43,8 @@ import * as fsAsync from 'node:fs/promises';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type Config, contractConfig } from './config';
-import { type FarmerProviders, type DeployedFarmerContract } from './common-types';
+import { type Config, contractConfig } from './config.js';
+import { type FarmerProviders, type DeployedFarmerContract } from './common-types.js';
 
 let logger: Logger;
 // Instead of setting globalThis.crypto which is read-only, we'll ensure crypto is available
@@ -70,82 +70,99 @@ const farmerVerifierContractInstance = async () => {
       throw new Error(`Contract file not found at ${contractPath}. Please run: compactc --vscode src/farmer.compact src/managed/farmer`);
     }
     
-    // Read the contract file
-    const contractCode = fs.readFileSync(contractPath, 'utf8');
-    logger.info(`Contract code loaded: ${contractCode.length} bytes`);
+    // Load the compiled contract module using dynamic import
+    const contractModule = await import(contractPath);
+    const { Contract } = contractModule;
     
-    // Create a contract structure that matches the expected format for the Midnight JS SDK
-    const contract = {
-      code: Buffer.from(contractCode).toString('hex'),
-      circuits: {
-        sign_up: {
-          name: 'sign_up',
-          inputs: [
-            { name: 'farmer_hash', type: 'bytes32' },
-            { name: 'full_name', type: 'field' },
-            { name: 'region', type: 'field' },
-            { name: 'registration_date', type: 'field' }
-          ],
-          outputs: []
-        },
-        register_crop: {
-          name: 'register_crop',
-          inputs: [
-            { name: 'farmer_hash', type: 'bytes32' },
-            { name: 'crop_name', type: 'field' },
-            { name: 'planting_date', type: 'field' },
-            { name: 'expected_harvest_date', type: 'field' },
-            { name: 'crop_type', type: 'field' }
-          ],
-          outputs: []
-        },
-        test_farmer_registration: {
-          name: 'test_farmer_registration',
-          inputs: [],
-          outputs: []
-        }
-      },
-      impureCircuits: {
-        sign_up: {
-          name: 'sign_up',
-          inputs: [
-            { name: 'farmer_hash', type: 'bytes32' },
-            { name: 'full_name', type: 'field' },
-            { name: 'region', type: 'field' },
-            { name: 'registration_date', type: 'field' }
-          ],
-          outputs: []
-        },
-        register_crop: {
-          name: 'register_crop',
-          inputs: [
-            { name: 'farmer_hash', type: 'bytes32' },
-            { name: 'crop_name', type: 'field' },
-            { name: 'planting_date', type: 'field' },
-            { name: 'expected_harvest_date', type: 'field' },
-            { name: 'crop_type', type: 'field' }
-          ],
-          outputs: []
-        },
-        test_farmer_registration: {
-          name: 'test_farmer_registration',
-          inputs: [],
-          outputs: []
-        }
-      },
-      constructorData: {},
-      witnesses: {},
-      initialState: () => ({
-        registered_farmers: new Map(),
-        farmer_details: new Map(),
-        farmer_crops: new Map(),
-        crop_details: new Map()
-      })
+    // Create witness functions that the contract expects
+    const witnessFunctions = {
+      create_test_farmer_hash: () => new Uint8Array(32),
+      create_test_farmer_name: () => BigInt(0),
+      create_test_region: () => BigInt(0),
+      create_test_crop_name: () => BigInt(0)
     };
     
+    // Create a contract instance
+    const contractInstance = new Contract(witnessFunctions);
+    
+    // Add the required methods directly to the contract instance
+    (contractInstance as any).getVerifierKeys = () => ({
+      sign_up: { key: 'placeholder_key' },
+      register_crop: { key: 'placeholder_key' },
+      test_farmer_registration: { key: 'placeholder_key' }
+    });
+    
+    // Add circuit definitions
+    (contractInstance as any).circuits = {
+      sign_up: {
+        name: 'sign_up',
+        inputs: [
+          { name: 'farmer_hash', type: 'bytes32' },
+          { name: 'full_name', type: 'field' },
+          { name: 'region', type: 'field' },
+          { name: 'registration_date', type: 'field' }
+        ],
+        outputs: []
+      },
+      register_crop: {
+        name: 'register_crop',
+        inputs: [
+          { name: 'farmer_hash', type: 'bytes32' },
+          { name: 'crop_name', type: 'field' },
+          { name: 'planting_date', type: 'field' },
+          { name: 'expected_harvest_date', type: 'field' },
+          { name: 'crop_type', type: 'field' }
+        ],
+        outputs: []
+      },
+      test_farmer_registration: {
+        name: 'test_farmer_registration',
+        inputs: [],
+        outputs: []
+      }
+    };
+    
+    // Add impure circuits
+    (contractInstance as any).impureCircuits = {
+      sign_up: {
+        name: 'sign_up',
+        inputs: [
+          { name: 'farmer_hash', type: 'bytes32' },
+          { name: 'full_name', type: 'field' },
+          { name: 'region', type: 'field' },
+          { name: 'registration_date', type: 'field' }
+        ],
+        outputs: []
+      },
+      register_crop: {
+        name: 'register_crop',
+        inputs: [
+          { name: 'farmer_hash', type: 'bytes32' },
+          { name: 'crop_name', type: 'field' },
+          { name: 'planting_date', type: 'field' },
+          { name: 'expected_harvest_date', type: 'field' },
+          { name: 'crop_type', type: 'field' }
+        ],
+        outputs: []
+      },
+      test_farmer_registration: {
+        name: 'test_farmer_registration',
+        inputs: [],
+        outputs: []
+      }
+    };
+    
+    // Add initial state
+    (contractInstance as any).initialState = () => ({
+      registered_farmers: new Map(),
+      farmer_details: new Map(),
+      farmer_crops: new Map(),
+      crop_details: new Map()
+    });
+    
     logger.info('Contract loaded successfully');
-    logger.info(`Circuit definitions: ${Object.keys(contract.circuits).join(', ')}`);
-    return contract as any; // Use type assertion to bypass type checking
+    logger.info(`Available circuits: ${Object.keys(contractInstance.circuits).join(', ')}`);
+    return contractInstance as any; // Use type assertion to bypass complex type checking
   } catch (error) {
     logger.error('Failed to load contract:', error);
     throw error;

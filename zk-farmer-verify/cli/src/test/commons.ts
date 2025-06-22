@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { type Config, StandaloneConfig, currentDir, TestnetRemoteConfig } from '../config';
+import { type Config, StandaloneConfig, currentDir, TestnetRemoteConfig } from '../config.js';
 import {
   DockerComposeEnvironment,
   GenericContainer,
@@ -22,7 +22,7 @@ import {
   Wait,
 } from 'testcontainers';
 import path from 'path';
-import * as api from '../api';
+import * as api from '../api.js';
 import * as Rx from 'rxjs';
 import { nativeToken } from '@midnight-ntwrk/ledger';
 import type { Logger } from 'pino';

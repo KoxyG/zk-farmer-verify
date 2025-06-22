@@ -19,9 +19,9 @@ import { stdin as input, stdout as output } from 'node:process';
 import { createInterface, type Interface } from 'node:readline/promises';
 import { type Logger } from 'pino';
 import { type StartedDockerComposeEnvironment, type DockerComposeEnvironment } from 'testcontainers';
-import { type FarmerProviders, type DeployedFarmerContract } from './common-types';
-import { type Config, StandaloneConfig } from './config';
-import * as api from './api';
+import { type FarmerProviders, type DeployedFarmerContract } from './common-types.js';
+import { type Config, StandaloneConfig } from './config.js';
+import * as api from './api.js';
 
 let logger: Logger;
 

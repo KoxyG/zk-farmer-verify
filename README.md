@@ -1,4 +1,4 @@
-# zk-farmer-verify# zk-farmer-verify
+# zk-farmer-verify
 
 A privacy-preserving identity and supply verification DApp for smallholder farmers in Angola using Midnight and Lace Wallet.
 

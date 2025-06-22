@@ -1,161 +1,94 @@
-# Counter DApp
+# ZK-Farmer Verify
 
-[![Generic badge](https://img.shields.io/badge/Compact%20Compiler-0.23.0-1abc9c.svg)](https://shields.io/)  
-[![Generic badge](https://img.shields.io/badge/TypeScript-5.8.3-blue.svg)](https://shields.io/)
+A privacy-preserving identity and supply verification DApp for smallholder farmers using Midnight and Lace Wallet.
+
+[![Compact Compiler](https://img.shields.io/badge/Compact%20Compiler-0.24.0-1abc9c.svg)](https://docs.midnight.network/relnotes/compact)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-blue.svg)](https://www.typescriptlang.org/)
+
+---
 
 ## Prerequisites
 
-1. You must have NodeJS version 22.15 or greater installed.
-2. Download the latest version of the Compact compiler from [the compiler release page](https://docs.midnight.network/relnotes/compact) and follow the instructions to install it (in particular the instructions regarding permissions that must be set to compile the contracts).
-3. Create a directory for the compiler executables, and unzip the downloaded file into that directory.
-4. Add the directory to your shell's $PATH.
-
-   For example, if you unzipped the Compact compiler in `$HOME/bin/compactc`:
-
+1. **Node.js**: Version 22.15 or greater
+2. **Compact Compiler**: Download from [Midnight releases](https://docs.midnight.network/relnotes/compact) and add to your `$PATH`.
+3. **Install dependencies**:
    ```sh
-   export PATH=$PATH:$HOME/bin/compactc
+   npm install
    ```
+4. **Proof Server**: Follow [Midnight docs](https://docs.midnight.network/develop/tutorial/using/proof-server) to install and launch the proof server.
 
-5. Run `npm install` in the root folder to install all the necessary packages.
-6. Compile and build the code in the `contract` folder before running the code in the `counter-cli` folder.  
-   In the `contract` folder, run this command:
-
-   ```sh
-   npm run compact && npm run build
-   ```
-
-   Follow the instructions in the documentation [to install and launch the proof server](https://docs.midnight.network/develop/tutorial/using/proof-server).
-
-7. Switch to the `counter-cli` folder and run this command:
-
-   ```sh
-   npm run start-testnet-remote
-   ```
-
-   If you do not have a wallet yet, you will be given the option to create a new one. After getting your address, you can use the [official faucet](https://faucet.testnet-02.midnight.network/) to request coins to deploy a contract on testnet and interact with it.
-
-## The counter contract
-
-The [contract](contract) subdirectory contains:
-
-- the [smart contract](contract/src/counter.compact)
-- some [unit tests](contract/src/test/counter.test.ts) to test the smart contract
-
-### The source code
-
-The contract contains a declaration of state stored publicly on the blockchain:
-
-```compact
-export ledger round: Counter;
-```
-
-and a single transition function to change the state:
-
-```compact
-export circuit increment(): [] {
-  round.increment(1);
-}
-```
-
-To verify that the smart contract operates as expected,
-we've provided some unit tests in `contract/src/test/counter.test.ts`.
-
-We've also provided tests that use a simple simulator, which illustrates
-how to initialize and call the smart contract code locally without running a node in `contract/src/test/counter-simulator.ts`
-
-### Building the smart contract
-
-Compile the contract:
-
-```sh
-npm run compact
-```
-
-You should see the following output from npm and the Compact compiler:
-
-```sh
-> compact
-> compactc --skip-zk src/counter.compact src/managed/counter
-
-Compactc version: 0.23.0
-```
-
-The compiler will complete very quickly because we've instructed it to skip ZK key generation with the option `--skip-zk`. The compiler's output files will be placed in the directory `contract/src/managed/counter`.
-
-Build the TypeScript source files:
-
-```sh
-npm run build
-```
-
-This creates the `contract/dist` directory.
-
-Start unit tests:
-
-```sh
-npm run test
-```
-
-## CLI
-
-After building the smart contract you can deploy it using the project in the subdirectory `counter-cli`:
-
-```sh
-cd ../counter-cli
-```
-
-Build from source code:
-
-```sh
-npm run build
-```
-
-Run the DApp:
-
-```sh
-npm run testnet-remote
-```
-
-If you want to launch all these steps at once, you can use this command:
-
-```sh
-npm run start-testnet-remote
-```
-
-The preceding entry point assumes you already have a proof server running locally.
-If you want one to be started automatically for you, use instead:
-
-```sh
-npm run testnet-remote-ps
-```
-
-Then follow the instructions from the CLI.
-
-If you did not previously create and fund a Midnight Lace wallet, you will need to do so. Funds for testing can be requested from [the official faucet](https://faucet.testnet-02.midnight.network/).
-
-You can find more information in part 2 of the [Midnight developer tutorial](https://docs.midnight.network/develop/tutorial/building).
-
-# zk-farmer-verify
-
-A privacy-preserving identity and supply verification DApp for smallholder farmers in Angola using Midnight and Lace Wallet.
-
-## Building the Contract
-
-To compile the Compact smart contract:
-
-```bash
-cd contract
-compactc --vscode src/farmer.compact src/managed/farmer
-```
-
-This command compiles the `farmer.compact` contract and generates the necessary JavaScript files in the `src/managed/farmer` directory.
+---
 
 ## Project Structure
 
-- `contract/src/farmer.compact` - The main Compact smart contract
-- `contract/src/managed/farmer/` - Generated contract files after compilation
-- `cli/` - Command-line interface for interacting with the contract
-- `frontend/` - User interface (if applicable)
+- `contract/src/farmer.compact` – Main Compact smart contract
+- `contract/src/managed/farmer/` – Generated contract files after compilation
+- `cli/` – Command-line interface for interacting with the contract
+- `frontend/` – (Optional) User interface
+
+---
+
+## Building and Compiling the Contract
+
+1. **Compile the Compact contract:**
+   ```sh
+   cd contract
+   npm run compact
+   # or
+   compactc --vscode ./src/farmer.compact ./src/managed/farmer
+   ```
+   This generates contract files in `src/managed/farmer/contract/`.
+
+2. **Build the TypeScript project:**
+   ```sh
+   npx turbo build
+   # or
+   npm run build
+   ```
+
+---
+
+## CLI Usage
+
+The CLI allows you to deploy/join contracts, register farmers, register crops, and view contract info.
+
+1. **Start the CLI:**
+   ```sh
+   cd cli
+   npm run testnet-remote
+   # or
+   npm start
+   ```
+
+2. **Follow the prompts:**
+   - Deploy or join a farmer verification contract
+   - Register a new farmer
+   - Register a crop for a farmer
+   - Run test farmer registration
+   - Display contract information
+
+**Example CLI session:**
+```
+You can do one of the following:
+  1. Deploy a new farmer verification contract
+  2. Join an existing farmer verification contract
+  3. Exit
+Which would you like to do? 1
+
+You can do one of the following:
+  1. Register a new farmer
+  2. Register a crop for a farmer
+  3. Run test farmer registration
+  4. Display farmer contract information
+  5. Exit
+Which would you like to do? 1
+Enter farmer full name: Maria Silva
+Enter farmer region: Huambo
+Enter registration date (YYYY-MM-DD): 2024-06-01
+...
+```
+
+---
 
 ## Features
 
@@ -164,26 +97,25 @@ This command compiles the `farmer.compact` contract and generates the necessary 
 - **Zero-Knowledge Verification**: Prove farmer status without revealing identity
 - **Supply Chain Transparency**: Track agricultural goods from farm to market
 
-## Getting Started
+---
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Troubleshooting
 
-2. Compile the contract:
-   ```bash
-   cd contract
-   compactc --vscode src/farmer.compact src/managed/farmer
-   ```
+- **File not found:**
+  - If you see an error about `FarmerVerifier.mc` or `myContract.compact` not found, make sure your contract file is named `farmer.compact` and your build scripts reference the correct file.
+- **Contract compilation errors:**
+  - Ensure you are using the correct Compact compiler version and that your contract syntax matches the latest Compact language.
+- **Proof server issues:**
+  - Make sure the proof server is running and accessible before running the CLI.
 
-3. Build the project:
-   ```bash
-   npx turbo build
-   ```
+---
 
-4. Run the CLI:
-   ```bash
-   cd cli
-   npm run testnet-remote
-   ```
+## Resources
+- [Midnight Developer Docs](https://docs.midnight.network/develop/tutorial/building)
+- [Compact Language Reference](https://docs.midnight.network/develop/compact/overview)
+- [Official Faucet](https://faucet.testnet-02.midnight.network/)
+
+---
+
+## License
+Apache-2.0

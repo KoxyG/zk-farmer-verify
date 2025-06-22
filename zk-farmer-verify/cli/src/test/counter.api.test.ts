@@ -16,10 +16,10 @@
 import { type Resource } from '@midnight-ntwrk/wallet';
 import { type Wallet } from '@midnight-ntwrk/wallet-api';
 import path from 'path';
-import * as api from '../api';
-import { type CounterProviders } from '../common-types';
-import { currentDir } from '../config';
-import { createLogger } from '../logger-utils';
+import * as api from '../api.js';
+import { type CounterProviders } from '../common-types.js';
+import { currentDir } from '../config.js';
+import { createLogger } from '../logger-utils.js';
 import { TestEnvironment } from './commons';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
