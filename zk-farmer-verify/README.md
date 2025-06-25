@@ -90,6 +90,31 @@ Enter registration date (YYYY-MM-DD): 2024-06-01
 
 ---
 
+## Testing
+
+Run the comprehensive test suite for the farmer verification API:
+
+```sh
+cd cli
+npm run test-api -- src/test/farmer.api.test.ts
+```
+
+This test suite includes:
+- **Contract Deployment**: Tests deploying the farmer verification contract
+- **Farmer Registration**: Tests privacy-preserving farmer signup functionality
+- **Crop Registration**: Tests secure crop tracking for registered farmers
+- **Contract Joining**: Tests joining existing farmer verification contracts
+- **Ledger State Queries**: Tests retrieving farmer and crop information
+
+The tests use Docker containers to provide a complete testing environment with:
+- Midnight node
+- Indexer service
+- Proof server
+
+**Note**: The first run may take several minutes as it downloads the required Docker images.
+
+---
+
 ## Features
 
 - **Farmer Registration**: Privacy-preserving farmer signup with ZK proofs

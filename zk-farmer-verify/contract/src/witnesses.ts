@@ -13,29 +13,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This is how we type an empty object.
+// Farmer contract private state type
 export type FarmerPrivateState = {
-  farmerHash: Uint8Array;
-  farmerName: bigint;
-  region: bigint;
-  cropName: bigint;
+  registered_farmers: Map<string, any>;
+  farmer_details: Map<string, any>;
+  farmer_crops: Map<string, any>;
+  crop_details: Map<string, any>;
 };
 
+// Witness functions for the farmer contract
 export const witnesses = {
-  create_test_farmer_hash: (): Uint8Array => {
-    // Return a test farmer hash (32 bytes)
-    return new Uint8Array(32).fill(1);
+  create_test_farmer_hash: (): [unknown, Uint8Array] => {
+    // Return a test farmer hash (32 bytes) as a tuple
+    return [null, new Uint8Array(32).fill(1)];
   },
-  create_test_farmer_name: (): bigint => {
-    // Return a test farmer name as Field (bigint)
-    return 123456789n;
+  create_test_farmer_name: (): [unknown, bigint] => {
+    // Return a test farmer name as Field (bigint) as a tuple
+    return [null, 123456789n];
   },
-  create_test_region: (): bigint => {
-    // Return a test region as Field (bigint)
-    return 987654321n;
+  create_test_region: (): [unknown, bigint] => {
+    // Return a test region as Field (bigint) as a tuple
+    return [null, 987654321n];
   },
-  create_test_crop_name: (): bigint => {
-    // Return a test crop name as Field (bigint)
-    return 555666777n;
+  create_test_crop_name: (): [unknown, bigint] => {
+    // Return a test crop name as Field (bigint) as a tuple
+    return [null, 555666777n];
   }
 };

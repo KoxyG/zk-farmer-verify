@@ -14,4 +14,4 @@
 // limitations under the License.
 
 export * as FarmerVerifier from "./managed/farmer/contract/index.cjs";
-export * from "./witnesses";
+export * from "./witnesses.js";

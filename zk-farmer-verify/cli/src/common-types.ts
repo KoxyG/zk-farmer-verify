@@ -13,16 +13,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { type ContractAddress } from '@midnight-ntwrk/compact-runtime';
-import { type DeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
-import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import type { ImpureCircuitId, MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import type { DeployedContract, FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
 
-// Legacy counter types (keeping for compatibility)
-export type CounterContract = any;
-export type CounterPrivateStateId = 'counterPrivateState';
-export type CounterProviders = MidnightProviders<any, string, unknown>;
-export type DeployedCounterContract = DeployedContract<any>;
+// Farmer verification contract types
+export type FarmerCircuits = 'sign_up' | 'register_crop' | 'test_farmer_registration';
 
-// New farmer verification types
-export type FarmerProviders = MidnightProviders<any, string, unknown>;
-export type DeployedFarmerContract = DeployedContract<any>;
+export const FarmerPrivateStateId = 'farmerPrivateState';
+
+export type FarmerPrivateState = {
+  registered_farmers: Map<string, any>;
+  farmer_details: Map<string, any>;
+  farmer_crops: Map<string, any>;
+  crop_details: Map<string, any>;
+};
+
+export type FarmerProviders = MidnightProviders<FarmerCircuits, typeof FarmerPrivateStateId, FarmerPrivateState>;
+
+export type FarmerContract = any; // This will be the actual contract type when properly imported
+
+export type DeployedFarmerContract = DeployedContract<FarmerContract> | FoundContract<FarmerContract>;

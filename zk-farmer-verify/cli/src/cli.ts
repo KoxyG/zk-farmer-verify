@@ -79,10 +79,41 @@ const registerFarmer = async (farmerContract: DeployedFarmerContract, rli: Inter
     const registrationDate = await rli.question('Enter registration date (YYYY-MM-DD): ');
     
     // Convert inputs to the expected format
-    const farmerHash = new Uint8Array(32); // Placeholder hash - in real implementation this would be generated
-    const fullNameField = BigInt(fullName.length); // Convert to Field type
-    const regionField = BigInt(region.length); // Convert to Field type
-    const registrationDateField = BigInt(new Date(registrationDate).getTime()); // Convert to Field type
+    const farmerHash = new Uint8Array(32).fill(1); // Simple hash for testing
+    
+    // Convert name and region to Field (use string length as a simple conversion)
+    const fullNameField = BigInt(fullName.length);
+    const regionField = BigInt(region.length);
+    
+    // Convert date to Field - use a simple timestamp or hash of the date string
+    let registrationDateField: bigint;
+    try {
+      const date = new Date(registrationDate);
+      if (isNaN(date.getTime())) {
+        // If date parsing fails, use a hash of the date string
+        registrationDateField = BigInt(registrationDate.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      } else {
+        // Use seconds since epoch (not milliseconds) to avoid large numbers
+        registrationDateField = BigInt(Math.floor(date.getTime() / 1000));
+      }
+    } catch (error) {
+      // Fallback: use a hash of the date string
+      registrationDateField = BigInt(registrationDate.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+    }
+    
+    // Ensure all values are positive and within Field range (0 to 2^254 - 1)
+    const maxField = 2n ** 254n - 1n;
+    if (fullNameField < 0n || fullNameField > maxField) {
+      throw new Error(`Full name field value ${fullNameField} is out of range`);
+    }
+    if (regionField < 0n || regionField > maxField) {
+      throw new Error(`Region field value ${regionField} is out of range`);
+    }
+    if (registrationDateField < 0n || registrationDateField > maxField) {
+      throw new Error(`Registration date field value ${registrationDateField} is out of range`);
+    }
+    
+    logger.info(`Calling signUpFarmer with: hash=${farmerHash}, name=${fullNameField}, region=${regionField}, date=${registrationDateField}`);
     
     await api.signUpFarmer(farmerContract, farmerHash, fullNameField, regionField, registrationDateField);
     logger.info('Farmer registration completed successfully!');
@@ -104,10 +135,42 @@ const registerCrop = async (farmerContract: DeployedFarmerContract, rli: Interfa
     
     // Convert inputs to the expected format
     const farmerHash = new Uint8Array(Buffer.from(farmerHashInput.replace('0x', ''), 'hex'));
-    const cropNameField = BigInt(cropName.length); // Convert to Field type
-    const plantingDateField = BigInt(new Date(plantingDate).getTime()); // Convert to Field type
-    const expectedHarvestDateField = BigInt(new Date(expectedHarvestDate).getTime()); // Convert to Field type
-    const cropTypeField = BigInt(parseInt(cropType)); // Convert to Field type
+    const cropNameField = BigInt(cropName.length);
+    
+    // Convert dates to Field - use seconds since epoch
+    const convertDateToField = (dateStr: string): bigint => {
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+          return BigInt(dateStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+        } else {
+          return BigInt(Math.floor(date.getTime() / 1000));
+        }
+      } catch (error) {
+        return BigInt(dateStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      }
+    };
+    
+    const plantingDateField = convertDateToField(plantingDate);
+    const expectedHarvestDateField = convertDateToField(expectedHarvestDate);
+    const cropTypeField = BigInt(parseInt(cropType));
+    
+    // Ensure all values are positive and within Field range
+    const maxField = 2n ** 254n - 1n;
+    if (cropNameField < 0n || cropNameField > maxField) {
+      throw new Error(`Crop name field value ${cropNameField} is out of range`);
+    }
+    if (plantingDateField < 0n || plantingDateField > maxField) {
+      throw new Error(`Planting date field value ${plantingDateField} is out of range`);
+    }
+    if (expectedHarvestDateField < 0n || expectedHarvestDateField > maxField) {
+      throw new Error(`Harvest date field value ${expectedHarvestDateField} is out of range`);
+    }
+    if (cropTypeField < 0n || cropTypeField > maxField) {
+      throw new Error(`Crop type field value ${cropTypeField} is out of range`);
+    }
+    
+    logger.info(`Calling registerCrop with: hash=${farmerHash}, crop=${cropNameField}, planting=${plantingDateField}, harvest=${expectedHarvestDateField}, type=${cropTypeField}`);
     
     await api.registerCrop(farmerContract, farmerHash, cropNameField, plantingDateField, expectedHarvestDateField, cropTypeField);
     logger.info('Crop registration completed successfully!');
@@ -200,10 +263,10 @@ export const run = async (config: Config, _logger: Logger, dockerEnv?: DockerCom
     env = await dockerEnv.up();
 
     if (config instanceof StandaloneConfig) {
-      config.indexer = mapContainerPort(env, config.indexer, 'counter-indexer');
-      config.indexerWS = mapContainerPort(env, config.indexerWS, 'counter-indexer');
-      config.node = mapContainerPort(env, config.node, 'counter-node');
-      config.proofServer = mapContainerPort(env, config.proofServer, 'counter-proof-server');
+      config.indexer = mapContainerPort(env, config.indexer, 'farmer-indexer');
+      config.indexerWS = mapContainerPort(env, config.indexerWS, 'farmer-indexer');
+      config.node = mapContainerPort(env, config.node, 'farmer-node');
+      config.proofServer = mapContainerPort(env, config.proofServer, 'farmer-proof-server');
     }
   }
   const wallet = await buildWallet(config, rli);

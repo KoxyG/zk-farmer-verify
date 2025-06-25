@@ -36,6 +36,13 @@ import { webcrypto } from 'crypto';
 import { type Logger } from 'pino';
 import * as Rx from 'rxjs';
 import { WebSocket } from 'ws';
+import {
+  type FarmerContract,
+  type FarmerProviders,
+  type DeployedFarmerContract,
+  FarmerPrivateStateId,
+} from './common-types.js';
+import { type Config, contractConfig } from './config.js';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { assertIsContractAddress, toHex } from '@midnight-ntwrk/midnight-js-utils';
 import { getLedgerNetworkId, getZswapNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
@@ -43,8 +50,7 @@ import * as fsAsync from 'node:fs/promises';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { type Config, contractConfig } from './config.js';
-import { type FarmerProviders, type DeployedFarmerContract } from './common-types.js';
+import { FarmerVerifier, witnesses, type FarmerPrivateState } from '@midnight-ntwrk/counter-contract';
 
 let logger: Logger;
 // Instead of setting globalThis.crypto which is read-only, we'll ensure crypto is available
@@ -57,112 +63,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load the farmer verification contract
-const farmerVerifierContractInstance = async () => {
+const farmerVerifierContractInstance = async (): Promise<FarmerContract> => {
   try {
     logger.info('Loading farmer verification contract...');
     
-    // Path to the contract file
-    const contractPath = path.resolve(__dirname, '../../contract/src/managed/farmer/contract/index.cjs');
-    logger.info(`Contract path: ${contractPath}`);
-    
-    // Check if the contract file exists
-    if (!fs.existsSync(contractPath)) {
-      throw new Error(`Contract file not found at ${contractPath}. Please run: compactc --vscode src/farmer.compact src/managed/farmer`);
-    }
-    
-    // Load the compiled contract module using dynamic import
-    const contractModule = await import(contractPath);
-    const { Contract } = contractModule;
-    
-    // Create witness functions that the contract expects
-    const witnessFunctions = {
-      create_test_farmer_hash: () => new Uint8Array(32),
-      create_test_farmer_name: () => BigInt(0),
-      create_test_region: () => BigInt(0),
-      create_test_crop_name: () => BigInt(0)
-    };
-    
-    // Create a contract instance
-    const contractInstance = new Contract(witnessFunctions);
-    
-    // Add the required methods directly to the contract instance
-    (contractInstance as any).getVerifierKeys = () => ({
-      sign_up: { key: 'placeholder_key' },
-      register_crop: { key: 'placeholder_key' },
-      test_farmer_registration: { key: 'placeholder_key' }
-    });
-    
-    // Add circuit definitions
-    (contractInstance as any).circuits = {
-      sign_up: {
-        name: 'sign_up',
-        inputs: [
-          { name: 'farmer_hash', type: 'bytes32' },
-          { name: 'full_name', type: 'field' },
-          { name: 'region', type: 'field' },
-          { name: 'registration_date', type: 'field' }
-        ],
-        outputs: []
-      },
-      register_crop: {
-        name: 'register_crop',
-        inputs: [
-          { name: 'farmer_hash', type: 'bytes32' },
-          { name: 'crop_name', type: 'field' },
-          { name: 'planting_date', type: 'field' },
-          { name: 'expected_harvest_date', type: 'field' },
-          { name: 'crop_type', type: 'field' }
-        ],
-        outputs: []
-      },
-      test_farmer_registration: {
-        name: 'test_farmer_registration',
-        inputs: [],
-        outputs: []
-      }
-    };
-    
-    // Add impure circuits
-    (contractInstance as any).impureCircuits = {
-      sign_up: {
-        name: 'sign_up',
-        inputs: [
-          { name: 'farmer_hash', type: 'bytes32' },
-          { name: 'full_name', type: 'field' },
-          { name: 'region', type: 'field' },
-          { name: 'registration_date', type: 'field' }
-        ],
-        outputs: []
-      },
-      register_crop: {
-        name: 'register_crop',
-        inputs: [
-          { name: 'farmer_hash', type: 'bytes32' },
-          { name: 'crop_name', type: 'field' },
-          { name: 'planting_date', type: 'field' },
-          { name: 'expected_harvest_date', type: 'field' },
-          { name: 'crop_type', type: 'field' }
-        ],
-        outputs: []
-      },
-      test_farmer_registration: {
-        name: 'test_farmer_registration',
-        inputs: [],
-        outputs: []
-      }
-    };
-    
-    // Add initial state
-    (contractInstance as any).initialState = () => ({
-      registered_farmers: new Map(),
-      farmer_details: new Map(),
-      farmer_crops: new Map(),
-      crop_details: new Map()
-    });
+    // Use the FarmerVerifier.Contract class with witnesses, similar to the working counter example
+    const contractInstance = new FarmerVerifier.Contract(witnesses);
     
     logger.info('Contract loaded successfully');
-    logger.info(`Available circuits: ${Object.keys(contractInstance.circuits).join(', ')}`);
-    return contractInstance as any; // Use type assertion to bypass complex type checking
+    logger.info(`Available circuits: ${Object.keys(contractInstance.circuits || {}).join(', ')}`);
+    return contractInstance as FarmerContract;
   } catch (error) {
     logger.error('Failed to load contract:', error);
     throw error;
@@ -191,53 +101,37 @@ export const joinContract = async (
   logger.info(`Joining farmer verification contract at address: ${contractAddress}`);
   const contract = await farmerVerifierContractInstance();
   
-  // Create a provider structure that matches what findDeployedContract expects
-  const joinProviders = {
-    midnight: providers.midnightProvider,
-    wallet: providers.walletProvider,
-    zkConfig: providers.zkConfigProvider,
-    logger
-  } as any;
-  
   const farmerContract = await findDeployedContract(
-    joinProviders,
+    providers,
     {
-      privateStateId: contractConfig.privateStateStoreName,
       contractAddress,
       contract,
+      privateStateId: FarmerPrivateStateId,
       initialPrivateState: {},
     }
   );
   
-  logger.info(`Joined contract at address: ${contractAddress}`);
-  return farmerContract as unknown as DeployedFarmerContract;
+  logger.info(`Joined contract at address: ${farmerContract.deployTxData.public.contractAddress}`);
+  return farmerContract as DeployedFarmerContract;
 };
 
 export const deploy = async (providers: FarmerProviders): Promise<DeployedFarmerContract> => {
   logger.info('Deploying farmer verification contract...');
   const contract = await farmerVerifierContractInstance();
   
-  // Create a provider structure that matches what deployContract expects
-  const deployProviders = {
-    midnight: providers.midnightProvider,
-    wallet: providers.walletProvider,
-    zkConfig: providers.zkConfigProvider,
-    logger
-  } as any;
-  
-  logger.info('Calling deployContract with contract and providers');
+  logger.info('Using default state initialization...');
   
   const farmerContract = await deployContract(
-    deployProviders,
+    providers,
     {
-      privateStateId: contractConfig.privateStateStoreName,
       contract,
+      privateStateId: FarmerPrivateStateId,
       initialPrivateState: {},
     }
   );
   
   logger.info(`Deployed contract at address: ${farmerContract.deployTxData.public.contractAddress}`);
-  return farmerContract as unknown as DeployedFarmerContract;
+  return farmerContract as DeployedFarmerContract;
 };
 
 export const signUpFarmer = async (
@@ -248,9 +142,51 @@ export const signUpFarmer = async (
   registrationDate: bigint
 ): Promise<FinalizedTxData> => {
   logger.info('Registering new farmer...');
-  // Placeholder implementation - would need proper contract integration
-  logger.info(`Farmer registration would be called with hash: ${farmerHash}, name: ${fullName}, region: ${region}, date: ${registrationDate}`);
-  throw new Error('signUpFarmer not yet implemented - requires proper contract integration');
+  
+  try {
+    // Log the contract structure to understand what's available
+    logger.info('Contract structure:', Object.keys(farmerContract));
+    logger.info('Contract deployTxData:', Object.keys(farmerContract.deployTxData || {}));
+    
+    // Check if callTx exists and has the sign_up method
+    if ('callTx' in farmerContract && farmerContract.callTx && typeof farmerContract.callTx === 'object') {
+      const callTx = farmerContract.callTx as any;
+      if (callTx.sign_up && typeof callTx.sign_up === 'function') {
+        logger.info('Using callTx.sign_up method');
+        logger.info(`Calling with parameters: farmerHash=${farmerHash}, fullName=${fullName}, region=${region}, registrationDate=${registrationDate}`);
+        
+        const tx = await callTx.sign_up(farmerHash, fullName, region, registrationDate);
+        logger.info('Transaction created:', typeof tx, Object.keys(tx || {}));
+        
+        if (tx && typeof tx.finalize === 'function') {
+          logger.info('Finalizing transaction...');
+          const finalizedTx = await tx.finalize();
+          logger.info(`Farmer registration transaction finalized: ${finalizedTx.txHash}`);
+          return finalizedTx;
+        } else {
+          logger.info('Transaction returned but no finalize method found');
+          return tx;
+        }
+      }
+    }
+    
+    // If we get here, the contract doesn't have the expected structure
+    logger.error('Contract does not have expected callTx.sign_up method');
+    logger.info('Available contract properties:', Object.keys(farmerContract));
+    if ('callTx' in farmerContract) {
+      logger.info('callTx properties:', Object.keys((farmerContract as any).callTx || {}));
+    }
+    
+    throw new Error('Contract does not have callTx.sign_up method. This contract may not be properly generated for Midnight framework interaction.');
+    
+  } catch (error) {
+    logger.error('Error in signUpFarmer:', error);
+    if (error instanceof Error) {
+      logger.error('Error message:', error.message);
+      logger.error('Error stack:', error.stack);
+    }
+    throw error;
+  }
 };
 
 export const registerCrop = async (
@@ -262,18 +198,77 @@ export const registerCrop = async (
   cropType: bigint
 ): Promise<FinalizedTxData> => {
   logger.info('Registering crop for farmer...');
-  // Placeholder implementation - would need proper contract integration
-  logger.info(`Crop registration would be called with hash: ${farmerHash}, crop: ${cropName}, planting: ${plantingDate}, harvest: ${expectedHarvestDate}, type: ${cropType}`);
-  throw new Error('registerCrop not yet implemented - requires proper contract integration');
+  
+  try {
+    // Check if callTx exists and has the register_crop method
+    if ('callTx' in farmerContract && farmerContract.callTx && typeof farmerContract.callTx === 'object') {
+      const callTx = farmerContract.callTx as any;
+      if (callTx.register_crop && typeof callTx.register_crop === 'function') {
+        logger.info('Using callTx.register_crop method');
+        const tx = await callTx.register_crop(farmerHash, cropName, plantingDate, expectedHarvestDate, cropType);
+        if (tx && typeof tx.finalize === 'function') {
+          const finalizedTx = await tx.finalize();
+          logger.info(`Crop registration transaction finalized: ${finalizedTx.txHash}`);
+          return finalizedTx;
+        } else {
+          logger.info('Transaction returned but no finalize method found');
+          return tx;
+        }
+      }
+    }
+    
+    logger.error('Contract does not have expected callTx.register_crop method');
+    throw new Error('Contract does not have callTx.register_crop method. This contract may not be properly generated for Midnight framework interaction.');
+    
+  } catch (error) {
+    logger.error('Error in registerCrop:', error);
+    throw error;
+  }
 };
 
 export const testFarmerRegistration = async (
   farmerContract: DeployedFarmerContract
 ): Promise<FinalizedTxData> => {
   logger.info('Running test farmer registration...');
-  // Placeholder implementation - would need proper contract integration
-  logger.info('Test farmer registration would be called');
-  throw new Error('testFarmerRegistration not yet implemented - requires proper contract integration');
+  
+  try {
+    // Log the contract structure to understand what's available
+    logger.info('Test - Contract structure:', Object.keys(farmerContract));
+    logger.info('Test - Contract deployTxData:', Object.keys(farmerContract.deployTxData || {}));
+    
+    // Check if callTx exists and has the test_farmer_registration method
+    if ('callTx' in farmerContract && farmerContract.callTx && typeof farmerContract.callTx === 'object') {
+      const callTx = farmerContract.callTx as any;
+      if (callTx.test_farmer_registration && typeof callTx.test_farmer_registration === 'function') {
+        logger.info('Using callTx.test_farmer_registration method');
+        logger.info('Calling test_farmer_registration with no parameters...');
+        
+        const tx = await callTx.test_farmer_registration();
+        logger.info('Test transaction created:', typeof tx, Object.keys(tx || {}));
+        
+        if (tx && typeof tx.finalize === 'function') {
+          logger.info('Finalizing test transaction...');
+          const finalizedTx = await tx.finalize();
+          logger.info(`Test farmer registration transaction finalized: ${finalizedTx.txHash}`);
+          return finalizedTx;
+        } else {
+          logger.info('Test transaction returned but no finalize method found');
+          return tx;
+        }
+      }
+    }
+    
+    logger.error('Contract does not have expected callTx.test_farmer_registration method');
+    throw new Error('Contract does not have callTx.test_farmer_registration method. This contract may not be properly generated for Midnight framework interaction.');
+    
+  } catch (error) {
+    logger.error('Error in testFarmerRegistration:', error);
+    if (error instanceof Error) {
+      logger.error('Test error message:', error.message);
+      logger.error('Test error stack:', error.stack);
+    }
+    throw error;
+  }
 };
 
 export const displayFarmerInfo = async (
@@ -292,6 +287,7 @@ export const displayFarmerInfo = async (
 
 export const createWalletAndMidnightProvider = async (wallet: Wallet): Promise<WalletProvider & MidnightProvider> => {
   const state = await Rx.firstValueFrom(wallet.state());
+  
   return {
     coinPublicKey: state.coinPublicKey,
     encryptionPublicKey: state.encryptionPublicKey,
@@ -492,11 +488,11 @@ export const buildFreshWallet = async (config: Config): Promise<Wallet & Resourc
 export const configureProviders = async (wallet: Wallet & Resource, config: Config) => {
   const walletAndMidnightProvider = await createWalletAndMidnightProvider(wallet);
   return {
-    privateStateProvider: levelPrivateStateProvider<'farmerPrivateState'>({
+    privateStateProvider: levelPrivateStateProvider<typeof FarmerPrivateStateId>({
       privateStateStoreName: contractConfig.privateStateStoreName,
     }),
     publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
-    zkConfigProvider: new NodeZkConfigProvider<'sign_up' | 'register_crop'>(contractConfig.zkConfigPath),
+    zkConfigProvider: new NodeZkConfigProvider<'sign_up' | 'register_crop' | 'test_farmer_registration'>(contractConfig.zkConfigPath),
     proofProvider: httpClientProofProvider(config.proofServer),
     walletProvider: walletAndMidnightProvider,
     midnightProvider: walletAndMidnightProvider,

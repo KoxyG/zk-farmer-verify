@@ -19,7 +19,7 @@
     "compact": "compactc --vscode ./src/farmer.compact ./src/managed/farmer",
     "test": "vitest run",
     "test:compile": "npm run compact && vitest run",
-    "build": "rm -rf dist && tsc --project tsconfig.build.json && mkdir -p dist && cp ./src/farmer.compact ./dist/",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json && mkdir -p dist && cp ./src/farmer.compact ./dist/ && cp -r ./src/managed ./dist/",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
