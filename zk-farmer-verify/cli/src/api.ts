@@ -67,11 +67,55 @@ const farmerVerifierContractInstance = async (): Promise<FarmerContract> => {
   try {
     logger.info('Loading farmer verification contract...');
     
+    // Debug: Check if witnesses are properly imported
+    logger.info('Checking witnesses object...');
+    logger.info('Witnesses type:', typeof witnesses);
+    logger.info('Witnesses keys:', Object.keys(witnesses || {}));
+    
+    // Check if each witness function exists
+    if (witnesses) {
+      logger.info('create_test_farmer_hash exists:', typeof witnesses.create_test_farmer_hash);
+      logger.info('create_test_farmer_name exists:', typeof witnesses.create_test_farmer_name);
+      logger.info('create_test_region exists:', typeof witnesses.create_test_region);
+      logger.info('create_test_crop_name exists:', typeof witnesses.create_test_crop_name);
+      
+      // Test calling one of the witness functions
+      try {
+        const testHash = witnesses.create_test_farmer_hash();
+        logger.info('Test witness call successful, result type:', typeof testHash);
+        logger.info('Test witness result:', testHash);
+      } catch (witnessError) {
+        logger.error('Test witness call failed:', witnessError);
+      }
+    } else {
+      logger.error('Witnesses object is null or undefined!');
+    }
+    
     // Use the FarmerVerifier.Contract class with witnesses, similar to the working counter example
-    const contractInstance = new FarmerVerifier.Contract(witnesses);
+    const contractInstance = new FarmerVerifier.Contract(witnesses as any);
     
     logger.info('Contract loaded successfully');
     logger.info(`Available circuits: ${Object.keys(contractInstance.circuits || {}).join(', ')}`);
+    logger.info(`Contract has initialState method: ${typeof contractInstance.initialState === 'function'}`);
+    logger.info(`Contract has impureCircuits: ${Object.keys(contractInstance.impureCircuits || {}).join(', ')}`);
+    
+    // Try to test the contract's initialState method
+    try {
+      logger.info('Testing contract initialState method...');
+      const testState = contractInstance.initialState({
+        initialPrivateState: {},
+        initialZswapLocalState: {
+          coinPublicKey: { bytes: new Uint8Array(32) },
+          currentIndex: 0n,
+        inputs: [],
+        outputs: []
+      }
+      });
+      logger.info('Contract initialState test successful:', Object.keys(testState));
+    } catch (stateError) {
+      logger.error('Contract initialState test failed:', stateError);
+    }
+    
     return contractInstance as FarmerContract;
   } catch (error) {
     logger.error('Failed to load contract:', error);
@@ -115,11 +159,41 @@ export const joinContract = async (
   return farmerContract as DeployedFarmerContract;
 };
 
+// Add a function to test contract state initialization
+const testContractStateInitialization = async (contract: FarmerContract): Promise<void> => {
+  try {
+    logger.info('Testing contract state initialization...');
+    
+    // Try to call the test_farmer_registration circuit which should initialize the state
+    if (contract.circuits && contract.circuits.test_farmer_registration) {
+      logger.info('Found test_farmer_registration circuit, testing state initialization...');
+      
+      // Create a mock context for testing
+      const mockContext = {
+        originalState: null,
+        currentPrivateState: {},
+        currentZswapLocalState: {},
+        transactionContext: null
+      };
+      
+      // This might help initialize the state
+      logger.info('Contract circuits available:', Object.keys(contract.circuits));
+    }
+    
+    logger.info('Contract state initialization test completed');
+  } catch (error) {
+    logger.error('Error testing contract state initialization:', error);
+  }
+};
+
 export const deploy = async (providers: FarmerProviders): Promise<DeployedFarmerContract> => {
   logger.info('Deploying farmer verification contract...');
   const contract = await farmerVerifierContractInstance();
   
-  logger.info('Using default state initialization...');
+  // Test the contract state initialization
+  await testContractStateInitialization(contract);
+  
+  logger.info('Deploying contract with Midnight framework...');
   
   const farmerContract = await deployContract(
     providers,
@@ -131,6 +205,8 @@ export const deploy = async (providers: FarmerProviders): Promise<DeployedFarmer
   );
   
   logger.info(`Deployed contract at address: ${farmerContract.deployTxData.public.contractAddress}`);
+  logger.info('Contract deployed successfully.');
+  
   return farmerContract as DeployedFarmerContract;
 };
 
@@ -148,7 +224,7 @@ export const signUpFarmer = async (
     logger.info('Contract structure:', Object.keys(farmerContract));
     logger.info('Contract deployTxData:', Object.keys(farmerContract.deployTxData || {}));
     
-    // Check if callTx exists and has the sign_up method
+    // First try callTx method
     if ('callTx' in farmerContract && farmerContract.callTx && typeof farmerContract.callTx === 'object') {
       const callTx = farmerContract.callTx as any;
       if (callTx.sign_up && typeof callTx.sign_up === 'function') {
@@ -167,6 +243,17 @@ export const signUpFarmer = async (
           logger.info('Transaction returned but no finalize method found');
           return tx;
         }
+      }
+    }
+    
+    // If callTx doesn't work, try direct circuit method
+    logger.info('callTx method not available, trying direct circuit method...');
+    if ('contract' in farmerContract && farmerContract.contract) {
+      const contract = (farmerContract as any).contract;
+      if (contract.circuits && contract.circuits.sign_up) {
+        logger.info('Found direct circuit method, but this requires proper context setup');
+        logger.info('Direct circuit methods need proper state context which is complex to set up');
+        throw new Error('Direct circuit method requires complex state context setup - not implemented');
       }
     }
     
@@ -556,5 +643,38 @@ export const saveState = async (wallet: Wallet, filename: string) => {
     }
   } else {
     logger.info('Not saving cache as sync cache was not defined');
+  }
+};
+
+// Add a simple test function to isolate the state issue
+export const testSimpleContractInteraction = async (farmerContract: DeployedFarmerContract): Promise<void> => {
+  logger.info('Testing simple contract interaction...');
+  
+  try {
+    // Try to access basic contract properties
+    logger.info('Contract type:', typeof farmerContract);
+    logger.info('Contract keys:', Object.keys(farmerContract));
+    
+    // Check if we can access the contract instance directly
+    if ('contract' in farmerContract) {
+      const contract = (farmerContract as any).contract;
+      logger.info('Direct contract available:', typeof contract);
+      logger.info('Direct contract keys:', Object.keys(contract || {}));
+      
+      if (contract && contract.circuits) {
+        logger.info('Direct circuits available:', Object.keys(contract.circuits));
+      }
+    }
+    
+    // Try to access callTx
+    if ('callTx' in farmerContract) {
+      const callTx = (farmerContract as any).callTx;
+      logger.info('callTx available:', typeof callTx);
+      logger.info('callTx keys:', Object.keys(callTx || {}));
+    }
+    
+    logger.info('Simple contract interaction test completed');
+  } catch (error) {
+    logger.error('Error in simple contract interaction test:', error);
   }
 };

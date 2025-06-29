@@ -44,7 +44,8 @@ You can do one of the following:
   2. Register a crop for a farmer
   3. Run test farmer registration
   4. Display farmer contract information
-  5. Exit
+  5. Test simple contract interaction
+  6. Exit
 Which would you like to do? `;
 
 const join = async (providers: FarmerProviders, rli: Interface): Promise<DeployedFarmerContract> => {
@@ -184,6 +185,11 @@ const mainLoop = async (providers: FarmerProviders, rli: Interface): Promise<voi
   if (farmerContract === null) {
     return;
   }
+  
+  // Suggest running the test circuit first to initialize state
+  logger.info('IMPORTANT: It is recommended to run the test farmer registration first to initialize the contract state.');
+  logger.info('This may help resolve "expected a cell, received null" errors.');
+  
   while (true) {
     const choice = await rli.question(MAIN_LOOP_QUESTION);
     switch (choice) {
@@ -195,8 +201,10 @@ const mainLoop = async (providers: FarmerProviders, rli: Interface): Promise<voi
         break;
       case '3':
         try {
+          logger.info('Running test farmer registration to initialize contract state...');
           await api.testFarmerRegistration(farmerContract);
           logger.info('Test farmer registration completed successfully!');
+          logger.info('Contract state should now be properly initialized.');
         } catch (error) {
           logger.error(`Failed to run test farmer registration: ${error}`);
         }
@@ -205,6 +213,14 @@ const mainLoop = async (providers: FarmerProviders, rli: Interface): Promise<voi
         await api.displayFarmerInfo(providers, farmerContract);
         break;
       case '5':
+        try {
+          await api.testSimpleContractInteraction(farmerContract);
+          logger.info('Simple contract interaction test completed!');
+        } catch (error) {
+          logger.error(`Failed to run simple contract interaction test: ${error}`);
+        }
+        break;
+      case '6':
         logger.info('Exiting...');
         return;
       default:

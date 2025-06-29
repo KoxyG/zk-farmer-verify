@@ -71,13 +71,23 @@ witness create_test_farmer_name(): Field;
 witness create_test_region(): Field;
 witness create_test_crop_name(): Field;
 
-// Test circuit
+// Test circuit - this will also initialize the Maps
 export circuit test_farmer_registration(): [] {
+    // Initialize all Maps by inserting dummy entries
+    // This ensures the Maps are properly created as cells in the state
+    
     const test_farmer = create_test_farmer_hash();
     const test_name = create_test_farmer_name();
     const test_region = create_test_region();
     const test_crop = create_test_crop_name();
     
+    // Initialize Maps by inserting test data
+    registered_farmers.insert(disclose(test_farmer), false);
+    farmer_details.insert(disclose(test_farmer), 0);
+    farmer_crops.insert(disclose(test_farmer), 0);
+    crop_details.insert(disclose(test_farmer), 0);
+    
+    // Now run the actual test registration
     sign_up(test_farmer, test_name, test_region, 1677609600);
     register_crop(test_farmer, test_crop, 1677609600, 1680288000, 1);
 }
